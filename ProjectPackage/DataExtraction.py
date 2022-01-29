@@ -1,4 +1,6 @@
 import os
+from itertools import combinations
+
 import uproot
 import numpy as np
 import awkward as ak
@@ -6,6 +8,7 @@ import pandas as pd
 
 from time import time
 from scipy.special import binom
+from tqdm import tqdm
 
 """
 Functions written to extract the data from the root files and convert it into awkward array or pandas dataframe
@@ -14,6 +17,7 @@ Functions written to extract the data from the root files and convert it into aw
 
 def from_root_to_event(data_folder, all_runs=False, run=290222):
     """
+    not sure i it is uesful
     Return an awkward event object from the root file
     :param data_folder: folder containing the folders of the runs
     :param all_runs: if True, returns a dictionary of event object, one array per run, keys are runs' number
@@ -49,6 +53,9 @@ def read_root_file(data_folder, all_runs=False, run=290222, entry_stop=None):
     :return: array or dict of arrays
     """
 
+    # !curl "https://cernbox.cern.ch/index.php/s/r7VFXonK39smzKP/download?path=290223/AnalysisResults.root" >
+    # run290223.data.root
+
     file_name = "AnalysisResults.root"
     t0 = time()
     if all_runs:
@@ -64,6 +71,8 @@ def read_root_file(data_folder, all_runs=False, run=290222, entry_stop=None):
 
     else:
         file_dir = data_folder + "/" + str(run) + "/"
+        if file_dir not in os.listdir(data_folder):
+            pass
         file = uproot.open(file_dir + file_name)
         events = file["eventsTree"]
         ev = events.arrays(how="zip", entry_stop=entry_stop)
@@ -89,12 +98,56 @@ def muon_df(events: ak.Array, save_to_csv=False, path=None) -> pd.DataFrame:
         df.to_csv(path)
 
     print(f'Number of tracks : {len(df)}.')
-    max_muons_pairs(df)
+    # max_muons_pairs(df)
 
     return df
 
 
+def di_muons_dataframe(df):
+    """
+    Create a second table from the dataframe with all di-muons pairs possible (muons of opposite charges)
+    :param df: dataframe with all the muons
+    :return: dataframe where the columns are P1, P2, E1, E2, E
+    """
+    args = ['E', 'Px', 'Py', 'Pz', 'Charge']
+    df_di_muons = pd.DataFrame()
+
+    t0 = time()
+    P1_list, P2_list, E1_list, E2_list = [], [], [], []
+    index = []
+    for idx, data in tqdm(df[args].groupby(level=0)):
+        tab = data.to_numpy()
+        for c in combinations(np.arange(len(data)), 2):  # we try every combination of di-muons
+            E1, E2 = tab[c, 0]  # extraction of the energy
+            P1, P2 = tab[c, 1:-1]  # extraction of the impulsion
+            if tab[c, -1].sum() == 0:  # opposite charges
+                P1_list.append(P1)
+                P2_list.append(P2)
+                E1_list.append(E1)
+                E2_list.append(E2)
+                index.append((idx, c))
+
+    df_di_muons["P1"] = P1_list
+    df_di_muons["P2"] = P2_list
+    df_di_muons["E1"] = E1_list
+    df_di_muons["E2"] = E2_list
+    df_di_muons["E"] = df_di_muons["E1"] + df_di_muons["E2"]
+
+    index = pd.MultiIndex.from_tuples(index, names=['Event id', 'Muon id'])
+    df_di_muons.index = index
+
+    print(f'Execution time : {round(time() - t0, 2)}')
+
+    return df_di_muons
+
+
 def max_muons_pairs(df):
+    """
+    Compute the total number of di-muons pairs candidates (possibly with the same charge)
+    It gives and idea of the time complexity.
+    :param df:
+    :return: None
+    """
     n_pairs = 0
     for _, data in df.groupby(level=0):
         n_pairs += binom(len(data), 2)

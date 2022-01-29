@@ -72,3 +72,14 @@ def p_T(Px, Py):
     return math.sqrt(Px**2 + Py**2)
 
 
+def p_T_df(P1, P2):
+    """
+    Compute the transverse impulsion from the two di-muons produced
+    :param P1:
+    :param P2:
+    :return:
+    """
+    Px, Py = P1[0] + P2[0], P1[1] + P2[1]
+    return math.sqrt(Px**2 + Py**2)
+
+

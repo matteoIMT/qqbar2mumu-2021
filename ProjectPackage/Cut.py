@@ -51,28 +51,28 @@ def radial_coord(x, y, z):
 
 # filtering on the dataframe
 
-def cut_eta(df, eta_min=-4.5, eta_max=-2.5):
+def cut_eta(df, eta_min=-4, eta_max=-2.5):
     """
-
+    Cut on the pseudo-rapidity in the range (eta_min , eta_max)
     :param df:
     :param eta_min:
     :param eta_max:
-    :return:
+    :return: filtered df
     """
     # df["eta"] = df.apply(lambda x: km.eta(x["Px"], x["Py"], x["Pz"]), axis=1)
-    df_f = df[(df["eta"] < -2.5) & (df["eta"] > -4)]
+    df_f = df[(df["eta"] < eta_max) & (df["eta"] > eta_min)]
     # We only keep the tracks with at least two muons, so we remove rows with only one entry
-    df_f = df_f[df_f.index.get_level_values(0).duplicated(keep=False)]
+    df_f = more_than_one_muon(df_f)
     print(f"This cut rejects {round((1 - df_f.shape[0] / df.shape[0]) * 100, 2)} % of the statistics")
     return df_f
 
 
 def p_fc(P, thetaAbs: float):
     """
-    Return the momentum at the first chamber touched of the spectrometer i.e without correction of the absorption
-    :param P: 3D vector (numpy array)
+    Return the momentum at the first chamber touched of the spectrometer i.e without correction of the absorptions
+    :param P: norm of the impulsion
     :param thetaAbs: angle in degrees
-    :return: 3D vector (numpy array)
+    :return: 3D vector (numpy array
     """
     corr = -3 if thetaAbs < 3 else -2.4  # average correction due to MSCs
 
@@ -108,7 +108,7 @@ def DCA(x, y, z):
 def cut_pDCA(df, N_s=4):
     df_f = df[(N_s * df.s_pxDCA - df.pDCA) > 0]
     # We only keep the tracks with at least two muons, so we remove rows with only one entry
-    df_f = df_f[df_f.index.get_level_values(0).duplicated(keep=False)]
+    df_f = more_than_one_muon(df_f)
 
     print(f"This cut rejects {round((1 - df_f.shape[0] / df.shape[0]) * 100, 2)} % of the statistics")
 
@@ -116,11 +116,16 @@ def cut_pDCA(df, N_s=4):
 
 
 def more_than_one_muon(df):
+    """
+    Removed the events with only one muon (we only care about di-muons)
+    :param df: dataframe of the muons
+    :return: df with at least two tracks
+    """
     df_f = df[df.index.get_level_values(0).duplicated(keep=False)]
     return df_f
 
 
-def y_cut(y: float):
+'''def y_cut(y: float) -> bool:
     return True if -4.5 < y < -2.5 else False
 
 
@@ -151,3 +156,4 @@ def df_muons_pairs(df: pd.DataFrame, save):
         df_pairs.to_csv()
 
     return df_pairs
+'''
