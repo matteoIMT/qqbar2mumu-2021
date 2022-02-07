@@ -115,6 +115,19 @@ def cut_pDCA(df, N_s=4):
     return df_f
 
 
+def cut_trigger(df):
+    """
+
+    :param df:
+    :return:
+    """
+    df_f = df[df["matchedTrgThreshold"] == 2]
+    df_f = more_than_one_muon(df_f)
+    print(f"This cut rejects {round((1 - df_f.shape[0] / df.shape[0]) * 100, 2)} % of the statistics")
+
+    return df_f
+
+
 def more_than_one_muon(df):
     """
     Removed the events with only one muon (we only care about di-muons)
@@ -123,37 +136,3 @@ def more_than_one_muon(df):
     """
     df_f = df[df.index.get_level_values(0).duplicated(keep=False)]
     return df_f
-
-
-'''def y_cut(y: float) -> bool:
-    return True if -4.5 < y < -2.5 else False
-
-
-def df_muons_pairs(df: pd.DataFrame, save):
-    """
-    Could be optimized
-    :param df: dataframe with all tracks
-    :param save: if True, the dataframe is saved as a csv file
-    :return: new data frame containing all pairs of di-muons in the domain of acceptance
-    """
-    df_pairs = pd.DataFrame()
-    index = []
-    for idx, data in tqdm(df[['E', 'Pz', 'Charge']].groupby(level=0)):
-        sub_index = [i for i in range(data.shape[0])]
-        for id_pair, c in enumerate(combinations(sub_index, 2)):
-            index.append((idx, id_pair))
-            S = pd.Series({'pairs': c})
-            S = S.append(data.iloc[list(c)].sum())
-            df_pairs = df_pairs.append(S, ignore_index=True)
-
-    index = pd.MultiIndex.from_tuples(index, names=["entry", "subentry"])
-    df_pairs.index = index
-
-    df_pairs = df_pairs[df_pairs["Charge"] == 0]
-    df_pairs = df_pairs[(df_pairs["y"] < -2.5) & (df_pairs["y"] > -4)]
-
-    if save:
-        df_pairs.to_csv()
-
-    return df_pairs
-'''

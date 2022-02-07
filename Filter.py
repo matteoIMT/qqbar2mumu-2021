@@ -40,6 +40,31 @@ def all_filters_muons(events, N_cut=5) -> tuple:
     return df
 
 
+def all_filters_muons_MC(events, gen_events, N_cut=5) -> tuple:
+    """
+    Given a run, it extracts the data and applies the filters on the events and then on muons tracks. It returns a
+    DataFrame with also the information on di-muons pairs.
+
+    :param events: awkward array containing the events of a run
+    :param gen_events:
+    :param N_cut: number of sigma for the pDCA cut
+    :return:
+    """
+    t0 = time()
+
+    # Cuts on the events
+    events = cut_events(events)
+
+    # Muons dataframe
+    df = de.MC_muons_from_JPsi(gen_events, events)
+
+    # cut on the tracks
+    df = cut_tracks(df, N_cut=N_cut)
+
+    print(f"\nTotal time needed : {round(time() - t0, 2)} s.")
+    return df
+
+
 def all_filters_di_muons(df_di_muons, y_range=(-2.5, -4.5), all_P_T=True, p_T_range=(0, 8)):
 
     # cut on the di-muons pairs (rapidity and transversal impulsion)
@@ -77,6 +102,9 @@ def cut_tracks(df, N_cut=5):
     :param N_cut: nu
     :return:
     """
+    print("\nCut threshold [...] ")
+    df = Cut.cut_trigger(df)
+
     # Computing the pseudo-rapidity of each track and cut
     df["eta"] = df.apply(lambda x: km.eta(x["Px"], x["Py"], x["Pz"]), axis=1)
     print("\nCut eta [...] ")
@@ -96,28 +124,28 @@ def cut_tracks(df, N_cut=5):
     return df
 
 
-def cut_di_muons(df_muons, y_range=(-2.5, -4.), all_P_T=True, p_T_range=(0, 8)):
+def cut_di_muons(df_di_muons, y_range=(-2.5, -4.), all_P_T=True, p_T_range=(0, 8)):
     """
 
-    :param df_muons:
+    :param df_di_muons:
     :param all_P_T: if True, no cut on the transverse impulsion of the di-muons pair is applied
     :param y_range: range on the rapidity
     :param p_T_range: range of transverse impulsion for the di-muon pair
     :return: df with the di-muons pairs
     """
-    df_muons['y'] = df_muons.apply(lambda x: km.y(x['E'], x['P1'][-1] + x['P2'][-1]), axis=1)
+    df_di_muons['y'] = df_di_muons.apply(lambda x: km.y(x['E'], x['P1'][-1] + x['P2'][-1]), axis=1)
     y_max, y_min = y_range
 
     if not all_P_T:
         p_min, p_max = p_T_range
-        df_muons['p_T'] = df_muons.apply(lambda x: km.p_T_df(x['P1'], x['P2']), axis=1)
-        df_muons = df_muons[(df_muons['p_T'] > p_min) & (df_muons['p_T'] < p_max)]
+        df_di_muons['p_T'] = df_di_muons.apply(lambda x: km.p_T_df(x['P1'], x['P2']), axis=1)
+        df_di_muons = df_di_muons[(df_di_muons['p_T'] > p_min) & (df_di_muons['p_T'] < p_max)]
 
-    df_muons_f = df_muons[(df_muons['y'] > y_min) & (df_muons['y'] < y_max)]
+    df_muons_f = df_di_muons[(df_di_muons['y'] > y_min) & (df_di_muons['y'] < y_max)]
 
-    print(f"This cut rejects {round((1 - df_muons_f.shape[0] / df_muons.shape[0]) * 100, 2)} % of the statistics.")
+    print(f"This cut rejects {round((1 - df_muons_f.shape[0] / df_di_muons.shape[0]) * 100, 2)} % of the statistics.")
 
-    print(f'\nNumber of di-muons pairs : {df_muons.shape[0]}')
+    print(f'\nNumber of di-muons pairs : {df_di_muons.shape[0]}')
 
     return df_muons_f
 
@@ -136,25 +164,31 @@ def plot_M_inv(M_inv_list, run_number):
     return h
 
 
+def hist_M_inv_PT(df_di_muons, width=0.01, m_range=(1.5, 10)):
+    """
+    Return the histogram of the invariant mass for each range of p_t.
+    For each range, the corresponding histogram is composed of two arrays : the first one with the counts
+    and the second one is the bins. To access the data of a specific histogram, the key is the range of p_t (tuple)
+    e.g :
+    all_hist = Filter.hist_M_inv_PT(df_dm)
+    all_hist[(0,1)]
 
+    :param df_di_muons:
+    :param width:
+    :param m_range:
+    :return: dictionary of numpy arrays
+    """
+    m_min, m_max = m_range
+    p_t_ranges = [(i, i+1) for i in range(6)] + [(6, 8)]
+    hist = {}
+    N = int((m_range[1] - m_range[0]) / width + 1)  # number of bins
 
+    bins = np.linspace(m_min, m_max, N)
 
+    for p in p_t_ranges:
+        df_selected = cut_di_muons(df_di_muons, all_P_T=False, p_T_range=p)
+        M_inv = df_selected.apply(lambda x: km.inv_mass(x['E1'], x['E2'], x['P1'], x['P2']), axis=1)
 
+        hist[p] = np.histogram(M_inv, bins=bins)
 
-'''args = ['E', 'Px', 'Py', 'Pz', 'Charge']
-P_cols = ['Px', 'Py', 'Pz']'''
-
-'''d = dict(Counter(DF.index.get_level_values(0)))
-idx = {k: [c for c in combinations([i for i in range(v)], 2)] for k, v in d.items()}
-
-DF[args].iloc[0].to_numpy()
-
-for id, data in DF.groupby(level=0)['Px']:
-    pass
-
-events = de.read_root_file(data_folder, run=run_number)'''
-
-# df_di_muons = di_muons_dataframe(DF)
-
-
-
+    return hist

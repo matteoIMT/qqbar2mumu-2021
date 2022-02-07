@@ -5,6 +5,7 @@ import uproot
 import numpy as np
 import awkward as ak
 import pandas as pd
+import urllib
 
 from time import time
 from scipy.special import binom
@@ -15,72 +16,63 @@ Functions written to extract the data from the root files and convert it into aw
 """
 
 
-def from_root_to_event(data_folder, all_runs=False, run=290222):
+def read_root_file(data_folder, run=290222, runs_list=None, entry_stop=None, branch="eventsTree"):
     """
-    not sure i it is uesful
-    Return an awkward event object from the root file
-    :param data_folder: folder containing the folders of the runs
-    :param all_runs: if True, returns a dictionary of event object, one array per run, keys are runs' number
-    :param run: id of the run wanted among all runs
-    :return: event object or dict of event object
-    """
+    This function reads the data file (.root) and converts it into a awkward Array. If multiple runs are specified,
+    it returns a dictionary with every run.
+    If the data file is not in the data folder, it download the file from the CERN Cloud.
 
-    file_name = "AnalysisResults.root"
-
-    if all_runs:
-        list_runs = os.listdir(data_folder)
-        list_dict = {}
-        for f in list_runs:
-            file_dir = data_folder + "/" + f + "/"
-            file = uproot.open(file_dir + file_name)
-            events = file["eventsTree"]
-            list_dict[f] = events
-
-    else:
-        file_dir = data_folder + "/" + str(run) + "/"
-        file = uproot.open(file_dir + file_name)
-        events = file["eventsTree"]
-        return events
-
-
-def read_root_file(data_folder, all_runs=False, run=290222, entry_stop=None):
-    """
-    Return an awkward array type from the root file
-    :param entry_stop:
-    :param data_folder: folder containing the folders of the runs
-    :param all_runs: if True, returns a dictionary of arrays, one array per run, keys are runs' number
-    :param run: run number of the run wanted among all runs
+    :param data_folder: path of the folder containing the folders of the runs
+    :param runs_list: if True, returns a dictionary of arrays, one array per run, keys are runs' number
+    :param run: run number
+    :param entry_stop: max number of entries
+    :param branch: branch of the tree of the root file wanted
     :return: array or dict of arrays
     """
 
-    # !curl "https://cernbox.cern.ch/index.php/s/r7VFXonK39smzKP/download?path=290223/AnalysisResults.root" >
-    # run290223.data.root
-
     file_name = "AnalysisResults.root"
     t0 = time()
-    if all_runs:
-        list_runs = os.listdir(data_folder)
+    if runs_list:
+        # list_dict list_runs = os.listdir(data_folder)
         list_dict = {}
-        for f in list_runs:
+        for f in runs_list:
             file_dir = data_folder + "/" + f + "/"
             file = uproot.open(file_dir + file_name)
-            events = file["eventsTree"]
+            events = file[branch]
             list_dict[f] = events.arrays(how="zip", entry_stop=entry_stop)
         print(f"Extraction took {round(time() - t0, 3)} s")
         return list_dict
 
     else:
         file_dir = data_folder + "/" + str(run) + "/"
-        if file_dir not in os.listdir(data_folder):
-            pass
+
+        '''if file_dir not in os.listdir(data_folder):  # if the run file is not in the data folder
+            ev = get_from_cloud(run)
+            return ev'''
+
         file = uproot.open(file_dir + file_name)
-        events = file["eventsTree"]
+        events = file[branch]
         ev = events.arrays(how="zip", entry_stop=entry_stop)
 
         print(f"Size of the data file : {round(os.path.getsize(file_dir + file_name) / 1e6, 2)} Mo.")
         print(f"Extraction took {round(time() - t0, 1)} s.")
         print(f"Number of events : {len(ev)}.")
         return ev
+
+
+def get_from_cloud(run):
+    """
+    Download the data of the run from the CERN Cloud
+    :param run: run number
+    :return:
+    """
+    url = f'https://cernbox.cern.ch/index.php/s/r7VFXonK39smzKP/download?path={run}/AnalysisResults.root '
+    file_name = f'run{run}.data.root'
+    urllib.request.urlretrieve(url, file_name)
+    file = uproot.open(file_name)
+    events = file["eventsTree"]
+    ev = events.arrays(how="zip")
+    return ev
 
 
 def muon_df(events: ak.Array, save_to_csv=False, path=None) -> pd.DataFrame:
@@ -91,7 +83,7 @@ def muon_df(events: ak.Array, save_to_csv=False, path=None) -> pd.DataFrame:
     :param path: path for the csv file
     :return: Pandas dataframe with all the muons of the run
     """
-    cols = ['E', 'Px', 'Py', 'Pz', 'Charge', 'thetaAbs', 'xDCA', 'yDCA', 'zDCA']
+    cols = ['E', 'Px', 'Py', 'Pz', 'Charge', 'thetaAbs', 'xDCA', 'yDCA', 'zDCA', 'matchedTrgThreshold']
     df = ak.to_pandas(events["Muon"])[cols]
 
     if save_to_csv:
@@ -155,4 +147,27 @@ def max_muons_pairs(df):
     print(f'Max number of possible muons pairs : {int(n_pairs)}')
 
     return None
+
+
+def MC_muons_from_JPsi(gen_events: ak.Array, events: ak.Array) -> pd.DataFrame:
+    """
+    Returns the muons data for all muons detected from a JPsi
+    :param gen_events: awkward array with the generated events
+    :param events: awkward array with the muons detected
+    :return: dataframe
+    """
+
+    id_JPsi = 443
+
+    # df_gen = ak.to_pandas(gen_events['Muon'])
+    df_events = ak.to_pandas(events['Muon'])
+
+    # we now have to add the information on the mother particle for each tracks
+    arr = gen_events['Muon']['GenMotherPDGCode'][:, 0]
+    PDGC_list = [arr[i] for i in df_events.index.get_level_values(0)]
+
+    df_events['GenMotherPDGCode'] = PDGC_list
+    df_events = df_events[df_events['GenMotherPDGCode'] == id_JPsi]
+
+    return df_events
 

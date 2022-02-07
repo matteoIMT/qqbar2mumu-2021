@@ -59,6 +59,9 @@ def cos_theta(X, Y):
 def inv_mass(E1: float, E2: float, P1, P2):
     """Returns the invariant mass from (p1+p2)^2"""
     ct12 = cos_theta(P1, P2)
+    if ct12 == 1.:
+        return 0
+
     return math.sqrt(2 * E1 * E2 * (1 - ct12))
 
 
