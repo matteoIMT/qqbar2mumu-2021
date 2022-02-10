@@ -17,7 +17,7 @@ from ProjectPackage import Cut
 run_number = 291944'''
 
 
-def all_filters_muons(events, N_cut=5) -> tuple:
+def all_filters_muons(events, N_cut=5):
     """
     Given a run, it extracts the data and applies the filters on the events and then on muons tracks. It returns a
     DataFrame with also the information on di-muons pairs.
@@ -73,26 +73,45 @@ def all_filters_di_muons(df_di_muons, y_range=(-2.5, -4.5), all_P_T=True, p_T_ra
     return df_di_muons
 
 
-def cut_events(events):
+def cut_events(events, MC=False):
     """
     Cuts on the events :
         - N muons
         - CMUL
         - z coordinate of vertex
+    :param MC: If the data are from Monte Carlo simulation
     :param events:
     :return: events filtered
     """
 
-    print("\nCut nMuons [...] \n ")
-    events = Cut.cut_nMuons(events)
+    if MC:
+        idx = []
+        for i, ev in enumerate(events):
+            if ev.nMuons > 1 and ev.isCMUL and abs(ev.zVtx) < 10:
+                idx.append(i)
 
-    print("\nCut CMUL [...] \n ")
-    events = Cut.cut_CMUL(events)
+        print("\nCut nMuons [...] \n ")
+        events = Cut.cut_nMuons(events)
 
-    print("\nCut zVtx [...] \n ")
-    events = Cut.z_cut(events)
+        print("\nCut CMUL [...] \n ")
+        events = Cut.cut_CMUL(events)
 
-    return events
+        print("\nCut zVtx [...] \n ")
+        events = Cut.z_cut(events)
+
+        return events, idx
+
+    else :
+        print("\nCut nMuons [...] \n ")
+        events = Cut.cut_nMuons(events)
+
+        print("\nCut CMUL [...] \n ")
+        events = Cut.cut_CMUL(events)
+
+        print("\nCut zVtx [...] \n ")
+        events = Cut.z_cut(events)
+
+        return events
 
 
 def cut_tracks(df, N_cut=5):
@@ -143,7 +162,6 @@ def cut_di_muons(df_di_muons, y_range=(-2.5, -4.), all_P_T=True, p_T_range=(0, 8
 
     df_muons_f = df_di_muons[(df_di_muons['y'] > y_min) & (df_di_muons['y'] < y_max)]
 
-    print(f"This cut rejects {round((1 - df_muons_f.shape[0] / df_di_muons.shape[0]) * 100, 2)} % of the statistics.")
 
     print(f'\nNumber of di-muons pairs : {df_di_muons.shape[0]}')
 
@@ -174,17 +192,17 @@ def hist_M_inv_PT(df_di_muons, width=0.01, m_range=(1.5, 10)):
     all_hist[(0,1)]
 
     :param df_di_muons:
-    :param width:
-    :param m_range:
+    :param width: width of a bin
+    :param m_range: mass range
     :return: dictionary of numpy arrays
     """
-    m_min, m_max = m_range
+    m_min, m_max = m_range  # mass range
     p_t_ranges = [(i, i+1) for i in range(6)] + [(6, 8)]
-    hist = {}
-    N = int((m_range[1] - m_range[0]) / width + 1)  # number of bins
 
+    N = int((m_range[1] - m_range[0]) / width + 1)  # number of bins
     bins = np.linspace(m_min, m_max, N)
 
+    hist = {}
     for p in p_t_ranges:
         df_selected = cut_di_muons(df_di_muons, all_P_T=False, p_T_range=p)
         M_inv = df_selected.apply(lambda x: km.inv_mass(x['E1'], x['E2'], x['P1'], x['P2']), axis=1)
@@ -192,3 +210,4 @@ def hist_M_inv_PT(df_di_muons, width=0.01, m_range=(1.5, 10)):
         hist[p] = np.histogram(M_inv, bins=bins)
 
     return hist
+

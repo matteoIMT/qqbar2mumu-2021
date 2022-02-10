@@ -6,6 +6,7 @@ import numpy as np
 import awkward as ak
 import pandas as pd
 import urllib
+import pickle
 
 from time import time
 from scipy.special import binom
@@ -46,9 +47,9 @@ def read_root_file(data_folder, run=290222, runs_list=None, entry_stop=None, bra
     else:
         file_dir = data_folder + "/" + str(run) + "/"
 
-        '''if file_dir not in os.listdir(data_folder):  # if the run file is not in the data folder
-            ev = get_from_cloud(run)
-            return ev'''
+        if str(run) not in os.listdir(data_folder):  # if the run file is not in the data folder
+            ev = get_from_cloud(run, folder=data_folder + '/')
+            return ev
 
         file = uproot.open(file_dir + file_name)
         events = file[branch]
@@ -60,15 +61,18 @@ def read_root_file(data_folder, run=290222, runs_list=None, entry_stop=None, bra
         return ev
 
 
-def get_from_cloud(run):
+def get_from_cloud(run, folder=''):
     """
     Download the data of the run from the CERN Cloud
+    :param folder:
     :param run: run number
     :return:
     """
     url = f'https://cernbox.cern.ch/index.php/s/r7VFXonK39smzKP/download?path={run}/AnalysisResults.root '
     file_name = f'run{run}.data.root'
-    urllib.request.urlretrieve(url, file_name)
+    if folder:
+        os.mkdir(f'{folder}/{run}')
+    urllib.request.urlretrieve(url, f'{folder}/{run}/AnalysisResults.root')
     file = uproot.open(file_name)
     events = file["eventsTree"]
     ev = events.arrays(how="zip")
@@ -149,18 +153,17 @@ def max_muons_pairs(df):
     return None
 
 
-def MC_muons_from_JPsi(gen_events: ak.Array, events: ak.Array) -> pd.DataFrame:
+def MC_muons_from_JPsi(gen_events: ak.Array, df_events: pd.DataFrame) -> pd.DataFrame:
     """
     Returns the muons data for all muons detected from a JPsi
     :param gen_events: awkward array with the generated events
-    :param events: awkward array with the muons detected
+    :param df_events: awkward array with the muons detected
     :return: dataframe
     """
 
     id_JPsi = 443
 
     # df_gen = ak.to_pandas(gen_events['Muon'])
-    df_events = ak.to_pandas(events['Muon'])
 
     # we now have to add the information on the mother particle for each tracks
     arr = gen_events['Muon']['GenMotherPDGCode'][:, 0]
@@ -170,4 +173,35 @@ def MC_muons_from_JPsi(gen_events: ak.Array, events: ak.Array) -> pd.DataFrame:
     df_events = df_events[df_events['GenMotherPDGCode'] == id_JPsi]
 
     return df_events
+
+
+def read_dict_hist(filename):
+    with open(filename, 'rb') as f:
+        dict_hist = pickle.load(f)
+    return dict_hist
+
+
+def save_dict_hist(filename, dict_hist):
+    with open(filename, 'wb') as f:
+        pickle.dump(dict_hist, f)
+
+    return None
+
+
+def string_to_list(S):
+    c_S = S.replace('[', '')
+    c_S = c_S.replace(']', '')
+    values = c_S.split()
+
+    P = [float(v) for v in values]
+    return P
+
+
+def load_di_muon_from_csv(run_number, folder='Save/'):
+
+    df_dm_loaded = pd.read_csv(f'{folder}{run_number}/{run_number}_dimuons.csv', index_col='Event id')
+    df_dm_loaded['P1'] = df_dm_loaded['P1'].apply(string_to_list)
+    df_dm_loaded['P2'] = df_dm_loaded['P2'].apply(string_to_list)
+
+    return df_dm_loaded
 

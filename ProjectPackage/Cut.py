@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import math
 
+import ProjectPackage.Kinematic as km
+
 from tqdm import tqdm
 from itertools import combinations
 
@@ -136,3 +138,29 @@ def more_than_one_muon(df):
     """
     df_f = df[df.index.get_level_values(0).duplicated(keep=False)]
     return df_f
+
+
+def cut_di_muons(df_di_muons, y_range=(-2.5, -4.), all_P_T=True, p_T_range=(0, 8)):
+    """
+
+    :param df_di_muons:
+    :param all_P_T: if True, no cut on the transverse impulsion of the di-muons pair is applied
+    :param y_range: range on the rapidity
+    :param p_T_range: range of transverse impulsion for the di-muon pair
+    :return: df with the di-muons pairs
+    """
+    df_di_muons['y'] = df_di_muons.apply(lambda x: km.y(x['E'], x['P1'][-1] + x['P2'][-1]), axis=1)
+    y_max, y_min = y_range
+
+    if not all_P_T:
+        p_min, p_max = p_T_range
+        df_di_muons['p_T'] = df_di_muons.apply(lambda x: km.p_T_df(x['P1'], x['P2']), axis=1)
+        df_di_muons = df_di_muons[(df_di_muons['p_T'] > p_min) & (df_di_muons['p_T'] < p_max)]
+
+    df_muons_f = df_di_muons[(df_di_muons['y'] > y_min) & (df_di_muons['y'] < y_max)]
+
+    # print(f"This cut rejects {round((1 - df_muons_f.shape[0] / df_di_muons.shape[0]) * 100, 2)} % of the statistics.")
+
+    print(f'\nNumber of di-muons pairs : {df_di_muons.shape[0]}')
+
+    return df_muons_f
