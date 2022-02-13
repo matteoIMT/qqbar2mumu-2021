@@ -12,7 +12,7 @@ from time import time
 from itertools import combinations
 
 
-def MC_analysis(data_folder, run_number, save_csv=False):
+def MC_analysis(data_folder, run_number, save_csv=False, path=''):
     """
 
     :param data_folder:
@@ -37,7 +37,7 @@ def MC_analysis(data_folder, run_number, save_csv=False):
         all_numbers[p_range] = N_gen(df_gen_dm, p_range), N_rec(df_MC_di_muons, p_range)
 
     if save_csv:
-        pd.DataFrame(all_numbers.values(), columns=['N_gen', 'N_rec']).to_csv(f'Save/MC_{run_number}_genrec.csv')
+        pd.DataFrame(all_numbers.values(), columns=['N_gen', 'N_rec']).to_csv(f'{path}{run_number}/MC_{run_number}_genrec.csv')
 
     return all_numbers
 

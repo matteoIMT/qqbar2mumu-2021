@@ -1,8 +1,10 @@
 import pickle
 import os
+import shutil
 import urllib
 import sys
 
+import MC_data
 import ProjectPackage.DataExtraction as de
 import Filter
 
@@ -26,6 +28,7 @@ class HiddenPrints:
 def download_all_runs(data_folder, runs_list):
     """
     Script to download the files containing the data of the runs from the CERN's cloud to the specified folder.
+    Does not work for the MC data (the MC data can be load in on once)
     :param data_folder: folder where to store the data
     :param runs_list: the list containing the runs' number to download
     """
@@ -34,6 +37,7 @@ def download_all_runs(data_folder, runs_list):
 
         if str(run) not in os.listdir(data_folder):
             url = f'https://cernbox.cern.ch/index.php/s/r7VFXonK39smzKP/download?path={run}/AnalysisResults.root'
+
             try:
                 os.mkdir(f'{data_folder}/{run}')
                 urllib.request.urlretrieve(url, f'{data_folder}/{run}/AnalysisResults.root')
@@ -56,7 +60,7 @@ def download_all_runs(data_folder, runs_list):
 
 
 def load_compute_and_save(folder_saving, data_folder, runs_list):
-    for run in runs_list:
+    for i, run in enumerate(runs_list):
         print(f'\nRun : {run}')
         if str(run) not in os.listdir(folder_saving):
 
@@ -82,6 +86,9 @@ def load_compute_and_save(folder_saving, data_folder, runs_list):
         else:
             print('Folder already created. \n')
 
+        if i % 10==0:
+            print(f'{len(runs_list) - i} runs remainging \n')
+
 
 def all_hist_all_runs(folder_saving, runs_list):
     p_t_ranges = [(i, i + 1) for i in range(6)] + [(6, 8)]
@@ -102,10 +109,70 @@ def all_hist_all_runs(folder_saving, runs_list):
     return all_h
 
 
+def load_compute_and_save_MC(folder_saving, data_folder, runs_list):
+    for run in runs_list:
+        print(f'\nRun : {run}')
+        if str(run) not in os.listdir(folder_saving):
+            os.mkdir(f'{folder_saving}{run}')  # create a directory for that run
+            print('Computing numbers [...] \n')
+            with HiddenPrints():
+                d = MC_data.MC_analysis(data_folder, run, save_csv=True, path=folder_saving)
+
+            print('Computing histograms [...] \n')
+            with HiddenPrints():
+                h = MC_data.M_inv_hist_MC(data_folder, run)
+                de.save_dict_hist(f'{folder_saving}{run}/{run}_histograms.pkl', h)
+        else:
+            print('Folder already created. \n')
+
+    return None
+
+
+def CMUL_events_for_all_runs(data_folder, run_list, d=None):
+    if d is None:
+        d = {}
+        run_remaining = run_list
+    else:
+        run_remaining = [r for r in run_list if r not in d.keys()]
+
+    for i, run in enumerate(run_remaining):
+        print(f'Run : {run} \n')
+        ev = de.read_root_file(data_folder, run=run)
+
+        ev = ev[ev.isCMUL == True]
+        n = len(ev)
+        d[run] = n
+
+        print(f'{n} \n')
+
+        if i % 10 == 0:
+            print(f'{len(run_remaining) - i} runs remainging \n')
+
+    with open('All_CMUL.pkl', 'wb') as f:
+        pickle.dump(d, f)
+
+    return d
+
+
 DataFolder = 'D:/Data_muons/dimuonData_LHC18m'
-Saving_folder = 'Save/'
+SavingFolder = 'Save/'
 
-all_runs_available = os.listdir(DataFolder)
+DataFolderMC = 'D:/Data_muons/dimuonData_LHC18mMC'
+SavingFolderMC = 'Save_MC/'
 
-runs = all_runs_available[56:60]
-load_compute_and_save(Saving_folder, DataFolder, runs)
+runs_MC = os.listdir(DataFolderMC)
+runs = os.listdir(DataFolder)
+
+'''all_runs_available = os.listdir(DataFolder)
+
+runs = all_runs_available[60:70]
+load_compute_and_save(Saving_folder, DataFolder, all_runs_available)
+
+load_compute_and_save(SavingFolder, DataFolder, runs)
+
+'''
+
+for f in os.listdir(SavingFolderMC):
+    if f.startswith('MC'):
+        run_number = f.split('_')[1]
+        shutil.move(SavingFolderMC + f, f'{SavingFolderMC}{run_number}')

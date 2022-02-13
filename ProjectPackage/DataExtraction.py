@@ -205,3 +205,11 @@ def load_di_muon_from_csv(run_number, folder='Save/'):
 
     return df_dm_loaded
 
+
+def remove_empty_folder(path):
+    for f in os.listdir(path):
+        if len(os.listdir(f'{path}/{f}')) == 0:
+            os.rmdir(f'{path}/{f}')
+
+    return None
+

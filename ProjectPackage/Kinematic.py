@@ -50,17 +50,20 @@ def cos_theta(X, Y):
     """
     Return the cosine of the angle between two 3D vectors
     """
-    unit_vector_1 = X / np.linalg.norm(X)
-    unit_vector_2 = Y / np.linalg.norm(Y)
+    unit_vector_1 = X
+    unit_vector_2 = Y
 
-    return np.dot(unit_vector_1, unit_vector_2)
+    return np.dot(unit_vector_1, unit_vector_2) / (np.linalg.norm(X) * np.linalg.norm(Y))
 
 
 def inv_mass(E1: float, E2: float, P1, P2):
     """Returns the invariant mass from (p1+p2)^2"""
     ct12 = cos_theta(P1, P2)
-    if ct12 == 1.:
+    if np.abs(ct12-1) < 1e-5:
         return 0
+
+    '''if ct12 - 1 < 0:
+        print(ct12-1)'''
 
     return math.sqrt(2 * E1 * E2 * (1 - ct12))
 
